@@ -63,12 +63,6 @@ public class UserService {
     private final ObjectMapper objectMapper = new ObjectMapper().configure(JsonGenerator.Feature.ESCAPE_NON_ASCII, false);
     @Value("${cloud.aws.s3.bucket}")
     private String bucket;
-//    @Value("${oauth.client-id}")
-//    private String googleClientId;
-//    @Value("${oauth.client-secret}")
-//    private String googleClientSecret;
-//    @Value("${oauth.google.redirect-uri}")
-//    private String googleRedirectUri;
 
     public UserService(PostRepository postRepository, UserRepository userRepository, PasswordEncoder passwordEncoder, MileageRepository mileageRepository, VipBenefitRepository vipBenefitRepository, BlockingRepository blockingRepository, S3Client s3Client, LikeService likeService, RedisTemplate<String, Object> redisTemplate, @Qualifier("userInfoDB") RedisTemplate<String, Object> redisTemplate1) {
         this.postRepository = postRepository;
@@ -103,50 +97,28 @@ public class UserService {
         return finalUser;
     }
 
-//    public AccessTokendto getAccessToken(String code){
-//        RestClient restClient = RestClient.create();
-//        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-//        params.add("code",code);
-//        params.add("client_id",googleClientId);
-//        params.add("client_secret",googleClientSecret);
-//        params.add("redirect_uri",googleRedirectUri);
-//        params.add("grant_type", "authorization_code");
-//        ResponseEntity<AccessTokendto> response = restClient.post()
-//                .uri("https://oauth2.googleapis.com/token")
-//                .header("Content-Type","application/x-www-form-urlencoded")
-//                .body(params)
-//                .retrieve()
-//                .toEntity(AccessTokendto.class);
-//        return response.getBody();
-//    }
-//
-//    public GoogleProfileDto getGoogleProfile(String token){
-//        RestClient restClient = RestClient.create();
-//        ResponseEntity<GoogleProfileDto> response = restClient.post()
-//                .uri("https://openidconnect.googleapis.com/v1/userinfo")
-//                .header("Authorization","Bearer " +token)
-//                .retrieve()
-//                .toEntity(GoogleProfileDto.class);
-//        return response.getBody();
-//    }
-//
-//    public User getUserByEmail(String email){
-//        User user = userRepository.findByEmail(email).orElse(null);
-//        return user;
-//    }
-//    public User createOauth(String socialId, String email, String name){
-//        User user = User.builder()
-//                .identify(email)
-//                .nickName(socialId)
-//                .email(email)
-//                .password("12341234")
-//                .name(name)
-//                .phoneNumber("01012341234")
-//                .birth("990621")
-//                .build();
-//        userRepository.save(user);
-//        return user;
-//    }
+    public void storeUserInfoInRedis(User user) {
+        UserInfoRes userInfoRes = UserInfoRes.builder()
+                .userId(user.getId())
+                .role(user.getRole().toString())
+                .identify(user.getIdentify())
+                .userStatus(user.getUserStatus())
+                .userNickName(user.getNickName())
+                .userName(user.getName())
+                .userEmail(user.getEmail())
+                .userPhoneNumber(user.getPhoneNumber())
+                .gender(user.getGender())
+                .profilePhoto(user.getProfilePhoto())
+                .build();
+
+        String redisKey = user.getIdentify();
+        try {
+            String userInfoJson = objectMapper.writeValueAsString(userInfoRes);
+            redisTemplate.opsForValue().set(redisKey, userInfoJson);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Redis 저장 중 오류 발생", e);
+        }
+    }
 
     public String profile(ProfileReq profileReq) throws IOException {
         String identify = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -166,17 +138,29 @@ public class UserService {
         String identify = SecurityContextHolder.getContext().getAuthentication().getName();
         User user = userRepository.findByIdentify(identify).orElseThrow(()->new EntityNotFoundException("없는 회원입니다."));
         String s3Url = "";
-        if(userUpdateReq.getProfilePhoto()!= null){
+        if (userUpdateReq.getProfilePhoto() != null) {
             MultipartFile image = userUpdateReq.getProfilePhoto();
-            byte[] bytes = image.getBytes();
-            String fileName =image.getOriginalFilename();
-            Path path = Paths.get("C:/Users/Playdata/Desktop/tmp/",fileName);
-            Files.write(path,bytes, StandardOpenOption.CREATE,StandardOpenOption.WRITE);
-            PutObjectRequest putObjectRequest = PutObjectRequest.builder().bucket(bucket).key(fileName).build();
-            s3Client.putObject(putObjectRequest, RequestBody.fromFile(path));
-            s3Url = s3Client.utilities().getUrl(a->a.bucket(bucket).key(fileName)).toExternalForm();
-        }else{
-            s3Url = user.getProfilePhoto();
+            String fileName = user.getId() + "_" + image.getOriginalFilename(); // S3에 저장할 파일명
+    
+            try {
+                // ✅ S3에 메모리에서 바로 업로드 (RequestBody.fromBytes 사용)
+                PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(fileName)
+                        .contentType(image.getContentType()) // ✅ 파일 타입 설정
+                        .build();
+    
+                s3Client.putObject(putObjectRequest, RequestBody.fromBytes(image.getBytes()));
+    
+                // ✅ S3에서 URL 가져오기
+                s3Url = s3Client.utilities().getUrl(a -> a.bucket(bucket).key(fileName)).toExternalForm();
+                if (s3Url == null || s3Url.isEmpty()) {
+                    throw new RuntimeException("🚨 S3 URL 가져오기 실패: " + fileName);
+                }
+    
+            } catch (IOException e) {
+                throw new RuntimeException("🚨 이미지 업로드 중 오류 발생: " + e.getMessage(), e);
+            }
         }
         user.updateUser(userUpdateReq,s3Url);
         String redisKey = user.getIdentify();
