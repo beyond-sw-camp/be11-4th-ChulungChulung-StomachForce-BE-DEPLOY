@@ -3,9 +3,15 @@ package com.beyond.StomachForce.User.service;
 import com.beyond.StomachForce.User.domain.User;
 import com.beyond.StomachForce.User.dtos.AccessTokendto;
 import com.beyond.StomachForce.User.dtos.GoogleProfileDto;
+import com.beyond.StomachForce.User.dtos.UserInfoRes;
 import com.beyond.StomachForce.User.dtos.UserSaveReq;
 import com.beyond.StomachForce.User.repository.UserRepository;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;

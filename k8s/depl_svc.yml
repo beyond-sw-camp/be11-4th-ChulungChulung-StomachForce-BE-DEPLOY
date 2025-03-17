@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: stomachforce-backend
-        image: 266735823131.dkr.ecr.ap-northeast-2.amazonaws.com/seongjae-deploy:latest
+        image: 346903264902.dkr.ecr.ap-northeast-2.amazonaws.com/seongjae-deploy:latest
         ports:
         - containerPort: 8080
         env:

@@ -70,44 +70,38 @@ public class AnnouncementService {
         announcementRepository.save(announcement);
         List<AnnouncementImage> imageList = new ArrayList<>();
 
-        if (dto.getImagePaths() != null && !dto.getImagePaths().isEmpty()){
-            try{
-                for (MultipartFile image : dto.getImagePaths()) {
-//
-                    byte[] bytes = image.getBytes();
-                    String fileName = image.getOriginalFilename();
-                    //      먼저 local에 저장
-                    Path path = Paths.get("C:/Users/Playdata/Desktop/announcement" , fileName);
-                    Files.write(path, bytes, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-                    //      저장을 위한 request 객체(s3 업로드 요청)
+        if (dto.getImagePaths() != null && !dto.getImagePaths().isEmpty()) {
+            for (MultipartFile image : dto.getImagePaths()) {
+                try {
+                    String fileName = user.getId() + "_" + image.getOriginalFilename(); // S3 저장 파일명
+    
+                    // ✅ S3에 메모리에서 바로 업로드 (RequestBody.fromBytes 사용)
                     PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                             .bucket(bucket)
                             .key(fileName)
+                            .contentType(image.getContentType()) // 파일 타입 설정
                             .build();
-                    //      저장 실행(s3업로드)
-                    s3Client.putObject(putObjectRequest, RequestBody.fromFile(path));
-
-                    //      저장된 s3url 갖고오기
-                    String s3Url = s3Client.utilities().getUrl(a->a.bucket(bucket).key(fileName)).toExternalForm();
-
-//                restaurantPhotos.add(s3Url); 이렇게 하면 안되고 객체 생성해서,,,주입해야함
-                    //  레스토랑포토 객체 생성 후에 리스트에 담기
+    
+                    s3Client.putObject(putObjectRequest, RequestBody.fromBytes(image.getBytes()));
+    
+                    // ✅ S3 URL 가져오기
+                    String s3Url = s3Client.utilities().getUrl(a -> a.bucket(bucket).key(fileName)).toExternalForm();
+                    if (s3Url == null || s3Url.isEmpty()) {
+                        throw new RuntimeException("🚨 S3 URL 가져오기 실패: " + fileName);
+                    }
+    
+                    // ✅ 이미지 객체 생성 후 리스트에 추가
                     AnnouncementImage announcementImage = AnnouncementImage.builder()
                             .imagePath(s3Url)
                             .announcement(announcement)
                             .build();
                     imageList.add(announcementImage);
-
+    
+                } catch (IOException e) {
+                    throw new RuntimeException("🚨 이미지 업로드 중 오류 발생: " + e.getMessage(), e);
                 }
-            }catch (RuntimeException e){
-                throw new RemoteException("이미지저장실패");
             }
         }
-
-
-
-
-
         announcementImageRepository.saveAll(imageList);
         announcement.setImages(imageList);
         // 4. 이미지 리스트 저장

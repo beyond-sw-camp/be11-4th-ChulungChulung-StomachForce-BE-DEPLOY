@@ -116,6 +116,7 @@ public class UserController {
         }
         String jwtToken = jwtTokenProvider.createToken(originalUser.getIdentify(), originalUser.getRole().toString());
         String jwtRefreshToken = jwtTokenProvider.createRefreshToken(originalUser.getIdentify() ,originalUser.getRole().toString());
+        userService.storeUserInfoInRedis(originalUser);
         Map<String, Object> loginInfo = new HashMap<>();
         loginInfo.put("id",originalUser.getId());
         loginInfo.put("token",jwtToken);
