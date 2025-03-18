@@ -120,34 +120,38 @@ public class AnnouncementService {
             // 기존 이미지 유지
             imageList.addAll(announcement.getImages());
         } else {
-            // 새 이미지 업로드 처리
+            // 새 이미지 업로드 처리 (로컬 저장 없이 바로 S3에 업로드)
             if (dto.getImages() != null && !dto.getImages().isEmpty()) {
                 for (MultipartFile image : dto.getImages()) {
-                    byte[] bytes = image.getBytes();
-                    String fileName = System.currentTimeMillis() + "_" + image.getOriginalFilename();
-
-                    // 로컬 저장
-                    Path path = Paths.get("C:/Users/Playdata/Desktop/announcement", fileName);
-                    Files.write(path, bytes, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-
-                    // S3 업로드
-                    PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                            .bucket(bucket)
-                            .key(fileName)
-                            .build();
-
-                    s3Client.putObject(putObjectRequest, RequestBody.fromFile(path));
-
-                    String s3Url = s3Client.utilities().getUrl(a -> a.bucket(bucket).key(fileName)).toExternalForm();
-
-                    AnnouncementImage announcementImage = AnnouncementImage.builder()
-                            .imagePath(s3Url)
-                            .announcement(announcement)
-                            .build();
-                    imageList.add(announcementImage);
+                    try {
+                        String fileName = System.currentTimeMillis() + "_" + image.getOriginalFilename();
+        
+                        // ✅ S3에 메모리에서 바로 업로드
+                        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                                .bucket(bucket)
+                                .key(fileName)
+                                .contentType(image.getContentType()) // 파일 타입 설정
+                                .build();
+        
+                        s3Client.putObject(putObjectRequest, RequestBody.fromBytes(image.getBytes()));
+        
+                        // ✅ S3에서 URL 가져오기
+                        String s3Url = s3Client.utilities().getUrl(a -> a.bucket(bucket).key(fileName)).toExternalForm();
+                        if (s3Url == null || s3Url.isEmpty()) {
+                            throw new RuntimeException("🚨 S3 URL 가져오기 실패: " + fileName);
+                        }
+        
+                        AnnouncementImage announcementImage = AnnouncementImage.builder()
+                                .imagePath(s3Url)
+                                .announcement(announcement)
+                                .build();
+                        imageList.add(announcementImage);
+                    } catch (IOException e) {
+                        throw new RuntimeException("🚨 이미지 업로드 중 오류 발생: " + e.getMessage(), e);
+                    }
                 }
             }
-        }
+        }        
 
         LocalDateTime parsedEndDate = null;
         if (dto.getEndDate() != null && !dto.getEndDate().isBlank()) {
