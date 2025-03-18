@@ -3,6 +3,8 @@ package com.beyond.StomachForce.announcement.dtos;
 
 import com.beyond.StomachForce.accouncementImage.domain.AnnouncementImage;
 import com.beyond.StomachForce.announcement.domain.AnnounceStatus;
+import com.beyond.StomachForce.announcement.domain.Type;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,6 +19,7 @@ import java.util.List;
 @Data
 @Builder
 public class AnnouncementUpdateReq {
+    private Type type;
     private String title;
     private String contents;
     private AnnounceStatus status;
