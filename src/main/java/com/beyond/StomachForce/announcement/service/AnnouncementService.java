@@ -163,7 +163,7 @@ public class AnnouncementService {
             announcementImageRepository.deleteAllByAnnouncement(announcement);
         }
 
-        announcement.updateAnnouncement(dto.getTitle(), dto.getContents(), dto.getStatus(), imageList, parsedEndDate);
+        announcement.updateAnnouncement(dto.getType(), dto.getTitle(), dto.getContents(), dto.getStatus(), imageList, parsedEndDate);
 
         if (!imageList.isEmpty()) {
             announcementImageRepository.saveAll(imageList);
