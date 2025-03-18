@@ -5,7 +5,6 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 import org.springframework.web.multipart.MultipartFile;
-import java.util.Optional;
 
 
 @NoArgsConstructor //기본생성자
@@ -23,5 +22,5 @@ public class UserUpdateReq {
     private String phoneNumber;
     @NotEmpty
     private Gender gender;
-    private Optional<MultipartFile> profilePhoto;
+    private MultipartFile profilePhoto;
 }
