@@ -47,7 +47,7 @@ public class Announcement extends BaseReservationTimeEntity {
 
     public void updateAnnouncement(Type type, String newTitle, String newContents, AnnounceStatus newStatus, List<AnnouncementImage> newImages, LocalDateTime newEndDate) {
         if (type != null) {
-            this.title = newTitle;
+            this.type = type;
         }
         if (newTitle != null && !newTitle.isBlank()) {
             this.title = newTitle;
