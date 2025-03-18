@@ -136,18 +136,22 @@ public class UserService {
     }
     public void updateByIdentify(UserUpdateReq userUpdateReq) throws IOException {
         String identify = SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByIdentify(identify).orElseThrow(()->new EntityNotFoundException("없는 회원입니다."));
-        String s3Url = "";
-        if (userUpdateReq.getProfilePhoto() != null) {
+        User user = userRepository.findByIdentify(identify)
+                .orElseThrow(() -> new EntityNotFoundException("없는 회원입니다."));
+    
+        String s3Url = user.getProfilePhoto(); // ✅ 기존 프로필 사진 유지
+    
+        // 🔹 새 이미지가 업로드된 경우에만 S3에 업로드
+        if (userUpdateReq.getProfilePhoto() != null && !userUpdateReq.getProfilePhoto().isEmpty()) {
             MultipartFile image = userUpdateReq.getProfilePhoto();
             String fileName = user.getId() + "_" + image.getOriginalFilename(); // S3에 저장할 파일명
     
             try {
-                // ✅ S3에 메모리에서 바로 업로드 (RequestBody.fromBytes 사용)
+                // ✅ S3에 메모리에서 바로 업로드
                 PutObjectRequest putObjectRequest = PutObjectRequest.builder()
                         .bucket(bucket)
                         .key(fileName)
-                        .contentType(image.getContentType()) // ✅ 파일 타입 설정
+                        .contentType(image.getContentType()) // 파일 타입 설정
                         .build();
     
                 s3Client.putObject(putObjectRequest, RequestBody.fromBytes(image.getBytes()));
@@ -157,12 +161,15 @@ public class UserService {
                 if (s3Url == null || s3Url.isEmpty()) {
                     throw new RuntimeException("🚨 S3 URL 가져오기 실패: " + fileName);
                 }
-    
             } catch (IOException e) {
                 throw new RuntimeException("🚨 이미지 업로드 중 오류 발생: " + e.getMessage(), e);
             }
         }
-        user.updateUser(userUpdateReq,s3Url);
+    
+        // 🔹 사용자 정보 업데이트 (프로필 사진 URL 포함)
+        user.updateUser(userUpdateReq, s3Url);
+    
+        // ✅ Redis 캐시 업데이트
         String redisKey = user.getIdentify();
         try {
             UserInfoRes userInfoRes = UserInfoRes.builder()
@@ -175,15 +182,16 @@ public class UserService {
                     .userEmail(user.getEmail())
                     .userPhoneNumber(user.getPhoneNumber())
                     .gender(user.getGender())
-                    .profilePhoto(user.getProfilePhoto())
+                    .profilePhoto(s3Url) // ✅ Redis에도 기존 or 새 프로필 사진 반영
                     .build();
-
+    
             String userInfoJson = objectMapper.writeValueAsString(userInfoRes);
             redisTemplate.opsForValue().set(redisKey, userInfoJson); // 기존 데이터 덮어쓰기
         } catch (JsonProcessingException e) {
             throw new RuntimeException("Redis 저장 중 오류 발생", e);
         }
     }
+    
 
     public void quit(){
         String identify = SecurityContextHolder.getContext().getAuthentication().getName();

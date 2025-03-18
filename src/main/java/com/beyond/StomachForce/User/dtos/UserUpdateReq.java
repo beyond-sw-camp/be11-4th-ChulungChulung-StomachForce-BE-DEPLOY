@@ -22,4 +22,5 @@ public class UserUpdateReq {
     @NotEmpty
     private Gender gender;
     private MultipartFile profilePhoto;
+    
 }
